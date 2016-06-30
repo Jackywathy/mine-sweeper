@@ -1,4 +1,4 @@
-import random,sys
+import random,sys,time
 from collections import deque
 import pygame as pg
 from pygame.locals import *
@@ -16,6 +16,8 @@ K_RIGHT_CLICK = 3
 K_MIDDLE_CLICK = 2
 K_SCROLL_UP = 4
 K_SCROLL_DOWN = 5
+
+
 class MineBoard:
     def __init__(self,x,y,mines):
         self.length = x
@@ -252,8 +254,6 @@ class MineBoard:
             else:
                 self.updateDeque.append((x,y))
 
-    def add_flag(self,x,y):
-        self.flags.add((x,y))
 
 
 
@@ -305,19 +305,35 @@ revealed_mine = set() # a set of revealed coordinates
 def game_select_screen():
     pg.display.set_caption('something')
 
+def create_header(width):
+    global displayscreen
+    displayscreen.fill(K_WHITE, Rect(0,0,L_PADDING+R_PADDING+width*K_BOX_WIDTH,H_HEIGHT))
 
-def create_rect(x,y):
+
+def create_rect(x,y=None):
+    print(x,y)
+    if y is None:
+        y = x[1]
+        x = x[0]
+
     return Rect(x*K_BOX_WIDTH + L_PADDING + 1,
         y*K_BOX_WIDTH + H_HEIGHT + T_PADDING + 1,
         K_BOX_WIDTH-2,
         K_BOX_WIDTH-2
                 )
 
-def pause(display_text):
+def pause(display_text, x=0,y=0,exit = 0,fill=True):
     # setup
     global displayscreen
-    displayscreen.fill(K_WHITE)
+    if fill:
+        displayscreen.fill(K_WHITE)
+    displayscreen.blit(mainFont.render(display_text,True,K_BLACK), (x,y))
     pg.display.update()
+    if exit:
+        time.sleep(exit)
+        pg.quit()
+        sys.exit()
+
     while True:
         for event in pg.event.get():
             if event.type == KEYDOWN:
@@ -330,7 +346,7 @@ def mine_sweep():
     # . = nothing, f = flag
     assert isinstance(mine_game, MineBoard)
     global displayscreen
-    icon = pg.image.load("images.jpeg")
+    icon = pg.image.load("mine.png").convert_alpha()
     pg.display.set_icon(icon)
     pg.display.set_caption("Bomb Defuser")
 
@@ -348,7 +364,6 @@ def mine_sweep():
     start_point = [R_PADDING, T_PADDING+H_HEIGHT]
     for iterat,_i in enumerate(range(width)):
         if iterat == width - 1:
-            print("ENTERED")
             pg.draw.line(displayscreen,K_SILVER,start_point, (start_point[0], start_point[1] + y_straight))
             start_point[0] += K_BOX_WIDTH-1
             pg.draw.line(displayscreen,K_SILVER,start_point, (start_point[0], start_point[1] + y_straight))
@@ -382,9 +397,21 @@ def mine_sweep():
 
     pg.display.update()
     currentBlock = None
+    canwin = set() # true if flags are in right position
 
     while True:
+        if len(revealed_mine) == width*height and not canwin:
+                pause("WINNER!", K_BOX_WIDTH*(width//2) + R_PADDING, K_BOX_WIDTH*(height//2)+T_PADDING + H_HEIGHT, 5)
+
+
+
+
+        """ EVENT HANDLER"""
         for event in pg.event.get ():
+
+
+
+
             if event.type == QUIT:
                 print(QUIT)
                 pg.quit()
@@ -432,7 +459,7 @@ def mine_sweep():
                     if mousex >= 0 and mousey >= 0 and temp_cord not in revealed_mine and temp_cord not in mine_game.flags:
                         if mine_game.press(currentBlock[0], currentBlock[1]) == '*':
                             print("BLOW UP")
-                            pause("GAME OVER")
+                            pause("GAME OVER",exit=5)
                             pg.quit()
                             sys.exit()
                         else:
@@ -442,10 +469,20 @@ def mine_sweep():
 
                 if event.button == K_RIGHT_CLICK:
                     # place a flag
+                    if temp_cord in mine_game.flags:
+                        # remove the flag
+                        mine_game.flags.remove(temp_cord)
+                        revealed_mine.remove(temp_cord)
+                        if temp_cord in canwin:
+                            canwin.remove(temp_cord)
+                        pg.draw.rect(displayscreen, K_GREY,create_rect(temp_cord))
 
-                    if mousex >= 0 and mousey >= 0 and temp_cord not in revealed_mine and temp_cord not in mine_game.flags: # make sure its a valid pos
+                    elif mousex >= 0 and mousey >= 0 and temp_cord not in revealed_mine and temp_cord: # make sure its a valid pos
                         revealed_mine.add(temp_cord)
                         mine_game.flags.add(temp_cord)
+                        if mine_game.get_tuple(temp_cord) != '*':
+                            print("THAT WAS NOT AN MINE YOU SCREWED UP")
+                            canwin.add(temp_cord)
                         render(temp_cord, True)
 
                 currentBlock = None
@@ -456,6 +493,37 @@ def mine_sweep():
                 if event.key == K_ESCAPE:
                     pg.quit()
                     sys.exit()
+
+                if event.key == K_f:
+                    mousex,mousey = pg.mouse.get_pos()
+                    print(pg.mouse.get_pos())
+                    mousex -= R_PADDING
+                    mousey -= H_HEIGHT+T_PADDING
+
+                    temp_cord = (mousex//K_BOX_WIDTH, mousey//K_BOX_WIDTH)
+
+                    # place a flag
+                    if temp_cord in mine_game.flags:
+                        # remove the flag
+                        mine_game.flags.remove(temp_cord)
+                        revealed_mine.remove(temp_cord)
+                        if temp_cord in canwin:
+                            canwin.remove(temp_cord)
+                        pg.draw.rect(displayscreen, K_GREY,create_rect(temp_cord))
+
+                    elif mousex >= 0 and mousey >= 0 and temp_cord not in revealed_mine and temp_cord: # make sure its a valid pos
+                        revealed_mine.add(temp_cord)
+                        mine_game.flags.add(temp_cord)
+                        if mine_game.get_tuple(temp_cord) != '*':
+                            print("THAT WAS NOT AN MINE YOU SCREWED UP")
+                            canwin.add(temp_cord)
+                        pg.draw.rect(displayscreen, K_SILVER, create_rect(temp_cord))
+                        render(temp_cord, True)
+                    currentBlock = None
+
+                if event.key == K_p:
+                    pause("PAUSED", 10,10,fill = False)
+                    create_header(width)
 
         pg.display.update()
         fpsClock.tick(30)
@@ -479,7 +547,7 @@ def render(x_y, text = None):
         displayscreen.blit(mainFont.render('F',True,K_BLACK), coordToAbs(x_y)) # TODO USE A NICE PICTURE INSTEAD
         return
     assert isinstance(int(mine_game.get_tuple(x_y)), int)
-    if mine_game.get_tuple(x_y) == 0:
+    if mine_game.get_tuple(x_y) == '0':
         pg.draw.rect(displayscreen, K_LIGHT_GREY, create_rect(x_y[0],x_y[1]))
     else:
         pg.draw.rect(displayscreen, K_LIGHT_GREY, create_rect(x_y[0],x_y[1]))
@@ -490,7 +558,7 @@ def render(x_y, text = None):
 
 
 
-mine_game = MineBoard(15,20,50)
+mine_game = MineBoard(15,20,50) # 15*20 / 50 = 6
 mine_sweep()
 
 
